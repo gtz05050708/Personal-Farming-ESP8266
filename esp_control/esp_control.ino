@@ -1,7 +1,10 @@
 #include <ESP8266WiFi.h>
 #include <ESP8266HTTPClient.h>
 #include <DHT.h>
+#include <NTPClient.h>
+#include <WiFiUdp.h>
 #define DHTTYPE DHT11
+
 
 const int WaterPin = D1;
 uint8_t DHTPin = D4; 
@@ -10,6 +13,7 @@ const int MoistPin = D2;
 const int LightPin = D3;
 const int analogpin = A0;
 const int PumpPin = D0;
+const int LightSourcePin = D5;
 float Temperature = 0.0;
 float Humidity = 0.0;
 int Water = 0;
@@ -20,19 +24,24 @@ const char* password = "121212121";
 String host = "http://personal-farming.herokuapp.com/api/record";
 String Data = "";
 int Time = 0;
+WiFiUDP ntpUDP;
+NTPClient timeClient(ntpUDP, "north-america.pool.ntp.org", 0);
   
 void setup(){
   Serial.begin(115200);
   ConnectWifi();
   pinMode(DHTPin, INPUT);
   dht.begin();
+  timeClient.begin();
   pinMode(LightPin,OUTPUT); 
   pinMode(MoistPin,OUTPUT);
   pinMode(WaterPin,OUTPUT);
   pinMode(PumpPin, OUTPUT);
+  pinMode(LightSourcePin, OUTPUT);
   digitalWrite(WaterPin, LOW);
   digitalWrite(MoistPin, LOW);
   digitalWrite(LightPin, LOW);
+  digitalWrite(LightSourcePin, LOW);
   digitalWrite(PumpPin, HIGH);
   Time = millis();
 }
@@ -95,7 +104,7 @@ void PostData(){
 
 
 void PumpControl(String pump){
-  if (Time+12000>=millis()){  
+  if (Time+10000>=millis()){  
     return;
   }
   if (pump == "on"){
@@ -149,11 +158,27 @@ void TempControl(){
   delay(200);
 }
 
+int GetTime(){
+  timeClient.update();
+  int realtime = timeClient.getHours();
+  realtime -= 8;
+  if (realtime <= 0){
+    realtime+=24;
+  }
+  return realtime;
+}
+
+void LightSourceControl(int realtime){
+  if (realtime<=18 && realtime>=6 && Light>= 500){
+      digitalWrite(LightSourcePin, HIGH);
+  }
+}
 void loop() {
   WaterControl();
   LightControl();
+  LightSourceControl(GetTime());
   TempControl();
   MoistureControl();
   PostData();
-  delay(200);
+  delay(100);
 }
